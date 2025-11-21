@@ -1,0 +1,71 @@
+# 训练配置表单 (YAML 格式)
+# 在这里填写你的实验参数，然后运行 `python scripts/train_eval.py --config config.yaml`
+
+# 1. 数据设置 (Data Settings)
+data:
+  # 数据文件所在的根目录
+  path: "data"
+  # 文件匹配模式，用于查找 NetCDF 文件。支持通配符。
+  # 例如 "era5_2024*_extracted/*data_stream-oper_stepType-instant.nc"
+  pattern: "era5_*.nc"
+  # 要加载的变量列表，用逗号分隔
+  vars: "mwd,swh"
+  # 输入序列的时间步长 (T)
+  time_window: 1
+  # 空间裁剪区域 [lat_min, lat_max, lon_min, lon_max]
+  # 默认是赤道太平洋的一个小区域，设为 null 或注释掉则不裁剪
+  region: [-10, 10, 100, 160]
+  # 缺失值填充方法: 'ffill', 'bfill', 'linear', 'nearest', 或 null (不填充)
+  fillna: "ffill"
+  # (可选) 训练使用的时间范围。支持单个时间段或多个时间段的列表。
+  # time_slice: "2022-01-01:2022-12-31" # 单个时间段示例
+  time_slices:
+    - "2022-06-01:2022-08-31"  # 2022年夏季
+    - "2024-06-01:2024-08-31"  # 2024年夏季
+  # (可选) 训练使用的特定时间点 "time1,time2,..."。通常不与 time_slices 同时使用。
+  time_points: null
+
+# 2. 模型设置 (Model Settings)
+model:
+  # 模型架构: 'convLSTM' 或 'stT' (Spatio-Temporal Transformer)
+  type: "stT"
+  # Transformer 的 Patch 大小 (仅 stT 模型有效)
+  patch_size: 4
+  # 嵌入维度 (仅 stT 模型有效)
+  embed_dim: 128
+  # Transformer 层数 (仅 stT 模型有效)
+  depth: 3
+  # 注意力头数 (仅 stT 模型有效)
+  heads: 4
+
+# 3. 训练设置 (Training Settings)
+training:
+  # 批次大小
+  batch_size: 1
+  # 训练轮数
+  epochs: 2
+  # 学习率
+  learning_rate: 0.001
+  # 数据加载的工作进程数
+  num_workers: 0
+  # 训练所需的最小样本数，低于此值将中止
+  min_samples: 1
+  # 每隔多少个 batch 打印一次日志，0 为不打印
+  log_interval: 10
+  # (可选) 每个 epoch 最多训练的 batch 数，用于快速测试
+  max_train_batches: null
+  # (可选) 每个 epoch 最多验证的 batch 数
+  max_val_batches: null
+
+# 4. 输出与可视化设置 (Output & Visualization)
+output:
+  # 是否在训练结束后进行可视化
+  visualize: true
+  # 可视化图像的保存路径
+  visualization_path: "outputs/prediction_comparison.png"
+  # (可选) 保存预测结果为 NetCDF 文件的路径
+  save_predictions_path: "outputs/preds_from_config.nc"
+  # (可选) 用于可视化的特定目标时间点 "YYYY-MM-DDTHH"
+  # 如果为 null，将自动从验证集中选择一个
+  predict_time_point: "2024-07-15T12"
+

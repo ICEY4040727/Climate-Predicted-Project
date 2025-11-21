@@ -1,0 +1,38 @@
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 虚拟环境
+.venv/
+venv/
+ENV/
+env/
+
+# IDE / 编辑器配置
+.idea/
+.vscode/
+
+# 日志文件
+*.log
+train_run.log
+
+# 输出目录
+# 每次运行生成的预测结果和图像不应纳入版本控制
+outputs/
+
+# 数据文件
+# 通常不建议将大型数据文件（如 .nc 文件）直接上传到 Git。
+# 如果需要，请考虑使用 Git LFS (Large File Storage) 或在云存储中共享。
+data/
+
+# uv 锁文件
+uv.lock
+
+# 其他临时文件
+download_era5_data.zip
+*.csv
+*.png
+*.txt
+
