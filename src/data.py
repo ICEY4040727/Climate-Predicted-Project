@@ -236,19 +236,7 @@ class ERA5TensorDataset(Dataset):
                 except Exception as e:
                     print(f"警告: 重命名坐标失败: {e}")
 
-        # 如果指定了 time_slice，则应用时间切片
-        if self.time_slice:
-            try:
-                start_time, end_time = self.time_slice.split(":")
-                if start_time and end_time:
-                    self.ds = self.ds.sel({self.time_dim: slice(start_time, end_time)})
-                elif start_time:
-                    self.ds = self.ds.sel({self.time_dim: slice(start_time, None)})
-                elif end_time:
-                    self.ds = self.ds.sel({self.time_dim: slice(None, end_time)})
-            except ValueError:
-                # 如果分割失败，则将整个字符串视为单个时间点
-                self.ds = self.ds.sel({self.time_dim: self.time_slice})
+
 
         # 如果指定了 time_points，则应用特定时间点选择
             # python
