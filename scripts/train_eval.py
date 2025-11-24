@@ -358,6 +358,14 @@ def visualize_predictions(y_true: torch.Tensor, y_pred: torch.Tensor, ds: ERA5Te
         except Exception:
             return ''
 
+    # --- 新增：尝试设置中文字体 ---
+    try:
+        plt.rcParams['font.sans-serif'] = ['SimHei']  # 使用黑体
+        plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+    except Exception:
+        print("警告：设置中文字体失败，图像中的中文可能显示为方框。")
+    # --- 结束 ---
+
     # 创建子图：每个变量一行，三列（真实值、预测值、差异）
     fig, axes = plt.subplots(C, 3, figsize=(15, 4.8 * C), constrained_layout=True)
     if C == 1:
@@ -367,19 +375,20 @@ def visualize_predictions(y_true: torch.Tensor, y_pred: torch.Tensor, ds: ERA5Te
     metrics_rows = [("variable", "rmse", "mae", "vmin", "vmax", "units")]
 
     for i, var_name in enumerate(var_names):
-        true_field = yt_np[sample_idx, i]
-        pred_field = yp_np[sample_idx, i]
+        true_field = np.nan_to_num(yt_np[sample_idx, i])
+        pred_field = np.nan_to_num(yp_np[sample_idx, i])
         diff_field = pred_field - true_field
 
-        # 计算全局 vmin/vmax 保持颜色尺度一致
-        vmin = float(min(true_field.min(), pred_field.min()))
-        vmax = float(max(true_field.max(), pred_field.max()))
+        # --- 修改：为真实值和预测值使用独立的颜色范围 ---
+        # 移除共享的 vmin/vmax
+        # vmin = float(min(true_field.min(), pred_field.min()))
+        # vmax = float(max(true_field.max(), pred_field.max()))
         units = get_units(var_name)
 
-        # 真实值
+        # 真实值 (使用自己的 vmin/vmax)
         im0 = axes[i, 0].imshow(
             true_field,
-            cmap='RdBu_r', vmin=vmin, vmax=vmax,
+            cmap='RdBu_r', # vmin, vmax 不再共享
             aspect='auto',
             extent=extent if extent is not None else None,
             origin='upper'
@@ -391,10 +400,10 @@ def visualize_predictions(y_true: torch.Tensor, y_pred: torch.Tensor, ds: ERA5Te
         if units:
             cbar0.set_label(units)
 
-        # 预测值
+        # 预测值 (使用自己的 vmin/vmax)
         im1 = axes[i, 1].imshow(
             pred_field,
-            cmap='RdBu_r', vmin=vmin, vmax=vmax,
+            cmap='RdBu_r', # vmin, vmax 不再共享
             aspect='auto',
             extent=extent if extent is not None else None,
             origin='upper'
@@ -406,7 +415,7 @@ def visualize_predictions(y_true: torch.Tensor, y_pred: torch.Tensor, ds: ERA5Te
         if units:
             cbar1.set_label(units)
 
-        # 差异
+        # 差异图保持不变，使用对称颜色范围
         diff_max = float(max(abs(diff_field.min()), abs(diff_field.max())))
         im2 = axes[i, 2].imshow(
             diff_field,
@@ -432,7 +441,11 @@ def visualize_predictions(y_true: torch.Tensor, y_pred: torch.Tensor, ds: ERA5Te
         )
 
         # 将数值转为字符串以便 CSV 中一致（并避免静态类型警告）
-        metrics_rows.append((str(var_name), f"{rmse_val:.6f}", f"{mae_val:.6f}", f"{vmin:.6f}", f"{vmax:.6f}", str(units)))
+        # 注意：这里的 vmin/vmax 仍然是基于共享值的，可以修改为各自的
+        true_min, true_max = true_field.min(), true_field.max()
+        pred_min, pred_max = pred_field.min(), pred_field.max()
+        metrics_rows.append((str(var_name), f"{rmse_val:.6f}", f"{mae_val:.6f}", f"{true_min:.6f}", f"{true_max:.6f}", str(units)))
+
 
     # 总标题与说明
     if extent is not None and None not in (lat_min, lat_max, lon_min, lon_max):
