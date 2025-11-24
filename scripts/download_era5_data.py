@@ -9,6 +9,10 @@ from pathlib import Path
 import ssl
 import urllib3
 import warnings
+import calendar
+import xarray as xr
+
+
 
 # 禁用 SSL 警告
 warnings.filterwarnings('ignore', message='Unverified HTTPS request')
@@ -26,7 +30,8 @@ class CustomHTTPSConnectionPool(urllib3.HTTPSConnectionPool):
 # 替换默认的 HTTPS 连接池
 urllib3.poolmanager.pool_classes_by_scheme['https'] = CustomHTTPSConnectionPool
 
-
+cds_client = cdsapi.Client()
+```python
 def download_month(year, month, dataset):
     """下载单个月的数据；如果本地已存在且看起来完整则跳过。
 
@@ -36,6 +41,24 @@ def download_month(year, month, dataset):
     filepath = Path.cwd() / filename
     temp_path = Path.cwd() / (filename + ".part")
 
+    def days_in_month(year_int, month_int):
+        return calendar.monthrange(year_int, month_int)[1]
+
+    def check_file_variables(filepath):
+        try:
+            ds = xr.open_dataset(str(filepath))
+            data_vars = list(ds.data_vars.keys())
+            all_vars = list(ds.variables.keys())
+            print(f"{filepath.name} 包含 data_vars: {data_vars}")
+            print(f"{filepath.name} 包含 variables: {all_vars}")
+            needed = {'sea_surface_temperature', '10m_u_component_of_wind', '10m_v_component_of_wind'}
+            missing = needed - set(data_vars) - set(all_vars)
+            if missing:
+                print(f"警告：缺少变量 {missing}，请确认 dataset/variable 名称是否正确或请求是否被 CDS 忽略。")
+            ds.close()
+        except Exception as e:
+            print(f"无法打开或检查文件 {filepath}: {e}")
+
     try:
         if filepath.exists() and filepath.stat().st_size > 1_000_000:
             print(f"{filename} 已存在（{filepath.stat().st_size} bytes），跳过下载。")
@@ -43,29 +66,30 @@ def download_month(year, month, dataset):
     except Exception:
         pass
 
-    client = cdsapi.Client(timeout=600, wait_until_complete=True, debug=False, verify=True, quiet=False)
+    days = [str(d).zfill(2) for d in range(1, days_in_month(int(year), int(month)) + 1)]
+
+    # 构建请求
+    request = {
+        'format': 'netcdf',
+        'product_type': 'reanalysis',
+        'variable': [
+            'mean_wave_direction',
+            'significant_height_of_combined_wind_waves_and_swell',
+            '10m_u_component_of_wind',
+            '10m_v_component_of_wind',
+            'sea_surface_temperature',
+        ],
+        'year': year,
+        'month': month,
+        'day': days,
+        'time': [f"{h:02d}:00" for h in range(24)],
+    }
+
     try:
-        request = {
-            'format': 'netcdf',
-            'product_type': 'reanalysis',
-            'variable': [
-                'mean_wave_direction',
-                'significant_height_of_combined_wind_waves_and_swell',
-                '10m_u_component_of_wind',
-                '10m_v_component_of_wind',
-                'sea_surface_temperature',
-            ],
-            'year': year,
-            'month': month,
-            'day': [str(d).zfill(2) for d in range(1, 32)],
-            'time': [f"{h:02d}:00" for h in range(24)],
-        }
-
-        print(f"开始下载 {year} 年 {month} 月的数据，临时保存为：{temp_path.name}")
-
+        # 如果存在遗留的临时文件，先删除
         try:
             if temp_path.exists():
-                print(f"发现临时文件 {temp_path.name}，将删除并重新下载。")
+                print(f"发现遗留临时文件 {temp_path.name}，将删除后重新下载。")
                 temp_path.unlink()
         except Exception:
             pass
@@ -74,21 +98,26 @@ def download_month(year, month, dataset):
         for attempt in range(max_retries):
             try:
                 print(f"尝试下载 {year} 年 {month} 月数据 (第{attempt+1}次尝试)...")
-                client.retrieve(dataset, request).download(str(temp_path))
+                # 使用模块级 cds_client（在文件顶部已创建）
+                cds_client.retrieve(dataset, request).download(str(temp_path))
+                # 下载成功则跳出重试循环
                 break
             except Exception as e:
-                if "SSLError" in str(e) or "EOF occurred" in str(e):
-                    print(f"下载失败: {e}")
-                    if attempt < max_retries - 1:
-                        wait_time = 60 * (attempt + 1)
-                        print(f"等待 {wait_time} 秒后重试...")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        print("已达到最大重试次数，放弃下载")
-                        raise
+                msg = str(e)
+                print(f"下载尝试失败：{msg}")
+                if any(k in msg for k in ("SSLError", "EOF occurred", "timed out", "ConnectionError")) and attempt < max_retries - 1:
+                    wait_time = 60 * (attempt + 1)
+                    print(f"网络相关错误，等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                    continue
                 else:
+                    print("已达到最大重试次数或非重试错误，放弃下载")
                     raise
+
+        # 确认临时文件存在后再写最终文件
+        if not temp_path.exists():
+            print(f"下载未生成临时文件：{temp_path}")
+            return 'failed'
 
         try:
             temp_path.rename(filepath)
@@ -102,10 +131,12 @@ def download_month(year, month, dataset):
                 return 'failed'
 
         print(f"{year}年{month}月数据下载完成！")
+        check_file_variables(filepath)
         return 'ok'
     except Exception as e:
         print(f"下载 {year}年{month}月数据失败：{str(e)}")
         return 'failed'
+
 
 
 def main():

@@ -578,6 +578,9 @@ def main():
     # 配置文件路径参数
     parser.add_argument('--config', type=str, default=None, help='YAML 配置文件路径')
 
+    # 在这里添加缺失的参数定义
+    parser.add_argument('--list-vars', action='store_true', help='列出数据文件中的所有可用变量并退出')
+
     # 数据相关参数
     parser.add_argument('--data', type=str, help='数据文件目录')
     parser.add_argument('--pattern', type=str, help="文件匹配模式")
