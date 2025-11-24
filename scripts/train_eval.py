@@ -839,7 +839,7 @@ def main():
     model = model.to(device)
     print(f"使用设备={device}，模型={args.model}，patch={getattr(model, 'patch', 'N/A')}，batch={args.batch}，epochs={args.epochs}")
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    scaler = torch.cuda.amp.GradScaler() if device == 'cuda' else None
+    scaler = torch.amp.GradScaler(enabled=(device == 'cuda'))
 
     # 训练循环
     print(f"\n开始训练：{args.epochs} 轮，{len(train_loader)} 个训练批次/轮，{len(val_loader)} 个验证批次/轮")
