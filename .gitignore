@@ -38,4 +38,5 @@ download_era5_data.zip
 *.csv
 *.png
 *.txt
+！requirements.txt
 
